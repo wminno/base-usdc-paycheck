@@ -1,6 +1,6 @@
 // delta-5 "Base Pay-Check" API: verify USDC payments on Base + small paid utilities.
 const http=require('http'),crypto=require('crypto'),fs=require('fs');
-const PORT=8471, RPC='https://mainnet.base.org', USDC='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+const PORT=parseInt(process.env.PORT||'8471'), RPC='https://mainnet.base.org', USDC='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 const WALLET='0x3567ba075e8f58670ff451101c12f578761c9749';
 const TRANSFER='0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const DB='keys.json'; let keys={}; try{keys=JSON.parse(fs.readFileSync(DB))}catch{}
@@ -25,7 +25,7 @@ const rl={};
 http.createServer(async(req,res)=>{try{
 const u=new URL(req.url,'http://x');const p=u.pathname;const ip=req.socket.remoteAddress;log(ip,req.method,req.url);
 if(p==='/'){res.writeHead(200,{'content-type':'text/html'});return res.end(HOME);}
-if(p==='/pay'){const l=process.env.PAYLINK||'';res.writeHead(302,{location:l||'/'});return res.end();}
+if(p==='/pay'){const l=process.env.PAYLINK||'https://buy.stripe.com/fZueVea0G7e85fnfMC8Vi08';res.writeHead(302,{location:l||'/'});return res.end();}
 const key=u.searchParams.get('key')||req.headers['x-api-key'];
 if(key&&keys[key]&&keys[key].left>0){keys[key].left--;save();}else{const h=Math.floor(Date.now()/3600000);rl[ip]=rl[ip]&&rl[ip].h===h?rl[ip]:{h,n:0};if(++rl[ip].n>60)return json(res,429,{error:'rate limit 60/h for free use; buy a key, see /'});}
 if(p==='/v1/key'){const tx=u.searchParams.get('tx');if(!/^0x[0-9a-f]{64}$/i.test(tx||''))return json(res,400,{error:'tx required'});if(Object.values(keys).find(k=>k.tx===tx.toLowerCase()))return json(res,409,{error:'tx already redeemed'});const t=await usdcTransfers(tx);if(!t||t.status!=='success')return json(res,402,{error:'tx not found or failed'});const paid=t.transfers.filter(x=>x.to===WALLET).reduce((a,b)=>a+b.usdc,0);if(paid<2)return json(res,402,{error:'need >= 2 USDC to '+WALLET,got:paid});const k='bpc_'+crypto.randomBytes(12).toString('hex');keys[k]={tx:tx.toLowerCase(),left:10000,created:Date.now()};save();return json(res,200,{key:k,requests:10000});}
